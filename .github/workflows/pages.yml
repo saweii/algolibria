@@ -1,0 +1,48 @@
+name: Publish Algolibria
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - algolibria-site.zip
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Unpack the verified static website
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          root = Path('_site').resolve()
+          with ZipFile('algolibria-site.zip') as archive:
+              for name in archive.namelist():
+                  if not (root / name).resolve().is_relative_to(root):
+                      raise ValueError('Unsafe archive path')
+              archive.extractall(root)
+          if not (root / 'index.html').is_file():
+              raise ValueError('Missing index.html')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - name: Deploy the website
+        id: deployment
+        uses: actions/deploy-pages@v4
